@@ -1,6 +1,13 @@
 {
+  "name": "infs3201_winter2026",
+  "type": "commonjs",
+  "main": "presentation.js",
+  "scripts": {
+    "start": "node presentation.js"
+  },
   "dependencies": {
-    "node": "^25.4.0",
-    "prompt-sync": "^4.2.0"
+    "express": "^5.2.1",
+    "hbs": "^4.2.0",
+    "mongodb": "^7.1.0"
   }
 }

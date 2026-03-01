@@ -1,117 +1,130 @@
 "use strict";
 
-const promptSync = require("prompt-sync");
+const express = require("express");
+const path = require("path");
+
 const business = require("./business");
 
-const prompt = promptSync({ sigint: true });
+const app = express();
 
+app.use(express.urlencoded({ extended: false }));
+app.use(express.static(path.join(__dirname, "public")));
 
-
-/**
- * Prints employees in a formatted table (no raw JSON output).
- * @param {Array<{employeeId:string,name:string,phone:string}>} employees
- * @returns {void}
- */
-function printEmployeesTable(employees) {
-  console.log("Employee List:\n");
-
-  let nameWidth = 4;
-  for (let e of employees) {
-    if (e && e.name && e.name.length > nameWidth) nameWidth = e.name.length;
-  }
-  nameWidth += 2;
-
-  let nameHeader = "Name";
-  while (nameHeader.length < nameWidth) nameHeader += " ";
-
-  console.log("Employee ID " + nameHeader + "Phone");
-
-  let divider = "";
-  for (let i = 0; i < 11; i++) divider += "-";
-  divider += " ";
-  for (let i = 0; i < nameWidth; i++) divider += "-";
-  divider += "---------";
-  console.log(divider);
-
-  for (let emp of employees) {
-    const id = emp?.employeeId ? String(emp.employeeId) : "";
-    const name = emp?.name ? String(emp.name) : "";
-    const phone = emp?.phone ? String(emp.phone) : "";
-
-    let namePadded = name;
-    while (namePadded.length < nameWidth) namePadded += " ";
-
-    console.log(id + " " + namePadded + phone);
-  }
-
-  console.log("");
-}
+app.set("view engine", "hbs");
+app.set("views", path.join(__dirname, "views"));
 
 /**
- * Displays a repeating menu and processes user choices until Exit is selected.
+ * Landing Page Route
+ * Displays a list of all employees.
+ *
+ * @route GET /
+ * @param {import("express").Request} req
+ * @param {import("express").Response} res
  * @returns {Promise<void>}
  */
-async function main() {
-  let choice = "";
-
-  while (choice !== "5") {
-    printMenu();
-    choice = prompt("What is your choice> ").trim();
-    console.log("");
-
-    if (choice === "1") {
-      const employees = await business.listEmployees();
-      printEmployeesTable(employees);
-    } else if (choice === "2") {
-      const name = prompt("Enter employee name: ").trim();
-      const phone = prompt("Enter phone number: ").trim();
-
-      const result = await business.addEmployee(name, phone);
-      if (!result.ok) {
-        console.log(result.message + "\n");
-      } else {
-        console.log("Employee added...\n");
-      }
-    } else if (choice === "3") {
-      const employeeId = prompt("Enter employee ID: ").trim().toUpperCase();
-      const shiftId = prompt("Enter shift ID: ").trim().toUpperCase();
-
-      const result = await business.assignShift(employeeId, shiftId);
-      console.log(result.message + "\n");
-    } else if (choice === "4") {
-      const employeeId = prompt("Enter employee ID: ").trim().toUpperCase();
-      const result = await business.getEmployeeSchedule(employeeId);
-
-      console.log("date,startTime,endTime");
-      if (!result.ok) {
-        console.log(""); 
-        console.log("");
-      } else {
-        for (const s of result.schedule) {
-          console.log(`${s.date},${s.startTime},${s.endTime}`);
-        }
-        console.log("");
-      }
-    } else if (choice === "5") {
-      console.log("Goodbye!");
-    } else {
-      console.log("Invalid choice. Please enter a number from 1 to 5.\n");
-    }
-  }
-}
+app.get("/", async (req, res) => {
+  const employees = await business.getAllEmployees();
+  res.render("landing", { employees });
+});
 
 /**
- * Prints the main application menu to the console.
+ * Employee Details Route
+ * Displays employee information and their sorted shifts.
+ *
+ * @route GET /employee/:employeeId
+ * @param {import("express").Request} req
+ * @param {import("express").Response} res
+ * @returns {Promise<void>}
+ */
+app.get("/employee/:employeeId", async (req, res) => {
+  const employeeId = String(req.params.employeeId ?? "").trim();
+  if (employeeId.length === 0) {
+    res.status(400).send("Invalid employee id.");
+    return;
+  }
+
+  const employee = await business.getEmployeeById(employeeId);
+  if (!employee) {
+    res.status(404).send("Employee not found.");
+    return;
+  }
+
+  const shifts = await business.getEmployeeShiftsSorted(employeeId);
+  res.render("employee", { employee, shifts });
+});
+
+/**
+ * Edit Employee Form Route
+ * Displays the edit form with pre-filled employee data.
+ *
+ * @route GET /employee/:employeeId/edit
+ * @param {import("express").Request} req
+ * @param {import("express").Response} res
+ * @returns {Promise<void>}
+ */
+app.get("/employee/:employeeId/edit", async (req, res) => {
+  const employeeId = String(req.params.employeeId ?? "").trim();
+  if (employeeId.length === 0) {
+    res.status(400).send("Invalid employee id.");
+    return;
+  }
+
+  const employee = await business.getEmployeeById(employeeId);
+  if (!employee) {
+    res.status(404).send("Employee not found.");
+    return;
+  }
+
+  res.render("editEmployee", { employee });
+});
+
+/**
+ * Edit Employee Submit Route
+ * Validates input, updates the database, and performs PRG redirect.
+ *
+ * @route POST /employee/:employeeId/edit
+ * @param {import("express").Request} req
+ * @param {import("express").Response} res
+ * @returns {Promise<void>}
+ */
+app.post("/employee/:employeeId/edit", async (req, res) => {
+  const employeeId = String(req.params.employeeId ?? "").trim();
+  if (employeeId.length === 0) {
+    res.status(400).send("Invalid employee id.");
+    return;
+  }
+
+  const name = (req.body.name ?? "").trim();
+  const phone = (req.body.phone ?? "").trim();
+
+  if (name.length === 0) {
+    res.status(400).send("Validation error: Name must not be empty.");
+    return;
+  }
+
+  const phoneRegex = /^\d{4}-\d{4}$/;
+  if (!phoneRegex.test(phone)) {
+    res.status(400).send("Validation error: Phone must be ####-####.");
+    return;
+  }
+
+  const ok = await business.updateEmployee(employeeId, name, phone);
+  if (!ok) {
+    res.status(404).send("Employee not found.");
+    return;
+  }
+
+  // PRG pattern
+  res.redirect("/");
+});
+
+/**
+ * Starts the Express server.
+ *
+ * @function
  * @returns {void}
  */
-function printMenu() {
-  console.log("1. Show all employees");
-  console.log("2. Add new employee");
-  console.log("3. Assign employee to shift");
-  console.log("4. View employee schedule");
-  console.log("5. Exit");
-}
-
-main().catch(function (err) {
-  console.error("Application error:", err.message);
+const port = 3000;
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
 });

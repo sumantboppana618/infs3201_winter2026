@@ -1,168 +1,88 @@
 "use strict";
 
-const fs = require("fs/promises");
+const { MongoClient } = require("mongodb");
 
-const EMPLOYEES_FILE = "./employees.json";
-const SHIFTS_FILE = "./shifts.json";
-const ASSIGNMENTS_FILE = "./assignments.json";
-const CONFIG_FILE = "./config.json";
+const DB_NAME = "infs3201_winter2026";
+
+let mongoClient = null;
 
 /**
- * Reads JSON from a file. Returns fallback on error.
- * @param {string} path
- * @param {*} fallback
- * @returns {Promise<*>}
+ * Get (and cache) a connected MongoClient.
+ * @returns {Promise<MongoClient>}
  */
-async function readJson(path, fallback) {
-  try {
-    const raw = await fs.readFile(path, "utf-8");
-    const data = JSON.parse(raw);
-    return data;
-  } catch {
-    return fallback;
+async function getClient() {
+  if (mongoClient) {
+    return mongoClient;
   }
+
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error("MONGODB_URI is not set.");
+  }
+
+  mongoClient = new MongoClient(uri);
+  await mongoClient.connect();
+  return mongoClient;
 }
 
 /**
- * Writes JSON to a file (pretty formatted).
- * @param {string} path
- * @param {*} data
- * @returns {Promise<void>}
+ * Get DB handle.
+ * @returns {Promise<import("mongodb").Db>}
  */
-async function writeJson(path, data) {
-  const jsonText = JSON.stringify(data, null, 4);
-  await fs.writeFile(path, jsonText, "utf-8");
+async function getDb() {
+  const client = await getClient();
+  return client.db(DB_NAME);
 }
 
 /**
- * Gets config.json (expects { "maxDailyHours": number }).
- * @returns {Promise<{maxDailyHours:number}>}
- */
-async function getConfig() {
-  const cfg = await readJson(CONFIG_FILE, { maxDailyHours: 9 });
-  if (!cfg || typeof cfg !== "object") return { maxDailyHours: 9 };
-  if (typeof cfg.maxDailyHours !== "number") return { maxDailyHours: 9 };
-  return cfg;
-}
-
-/**
- * Returns all employees.
+ * Get all employees (for landing page).
  * @returns {Promise<Array<{employeeId:string,name:string,phone:string}>>}
  */
 async function getAllEmployees() {
-  const employees = await readJson(EMPLOYEES_FILE, []);
-  return Array.isArray(employees) ? employees : [];
+  const db = await getDb();
+  return await db.collection("employees").find({}).toArray();
 }
 
 /**
- * Finds a single employee by employeeId.
+ * Get one employee by employeeId.
  * @param {string} employeeId
- * @returns {Promise<{employeeId:string,name:string,phone:string}|null>}
+ * @returns {Promise<{employeeId:string,name:string,phone:string} | null>}
  */
-async function findEmployee(employeeId) {
-  const employees = await getAllEmployees();
-  for (const e of employees) {
-    if (e && e.employeeId === employeeId) return e;
-  }
-  return null;
+async function getEmployeeById(employeeId) {
+  const db = await getDb();
+  return await db.collection("employees").findOne({ employeeId: employeeId });
 }
 
 /**
- * Returns next available employee ID in format E###.
- * @returns {Promise<string>}
- */
-async function getNextEmployeeId() {
-  const employees = await getAllEmployees();
-  let maxNum = 0;
-
-  for (const emp of employees) {
-    const id = emp?.employeeId ? String(emp.employeeId) : "";
-    if (id.length === 4 && id[0] === "E") {
-      const num = parseInt(id.substring(1), 10);
-      if (!Number.isNaN(num) && num > maxNum) maxNum = num;
-    }
-  }
-
-  const nextNum = maxNum + 1;
-  let numText = String(nextNum);
-  while (numText.length < 3) numText = "0" + numText;
-  return "E" + numText;
-}
-
-/**
- * Inserts a new employee.
- * @param {{employeeId:string,name:string,phone:string}} employee
- * @returns {Promise<void>}
- */
-async function insertEmployee(employee) {
-  const employees = await getAllEmployees();
-  employees.push(employee);
-  await writeJson(EMPLOYEES_FILE, employees);
-}
-
-
-/**
- * Finds a shift by shiftId.
- * @param {string} shiftId
- * @returns {Promise<{shiftId:string,date:string,startTime:string,endTime:string}|null>}
- */
-async function findShift(shiftId) {
-  const shifts = await getAllShifts();
-  for (const s of shifts) {
-    if (s && s.shiftId === shiftId) return s;
-  }
-  return null;
-}
-
-
-/**
- * Checks if assignment exists for employeeId+shiftId composite key.
- * @param {string} employeeId
- * @param {string} shiftId
- * @returns {Promise<boolean>}
- */
-async function assignmentExists(employeeId, shiftId) {
-  const assignments = await getAllAssignments();
-  for (const a of assignments) {
-    if (a && a.employeeId === employeeId && a.shiftId === shiftId) return true;
-  }
-  return false;
-}
-
-/**
- * Inserts an assignment record.
- * @param {{employeeId:string,shiftId:string}} assignment
- * @returns {Promise<void>}
- */
-async function insertAssignment(assignment) {
-  const assignments = await getAllAssignments();
-  assignments.push(assignment);
-  await writeJson(ASSIGNMENTS_FILE, assignments);
-}
-
-/**
- * Gets all shifts assigned to an employee for a specific date.
- * (Does the filtering in persistence layer, not business layer.)
+ * Get shifts for an employee by:
+ * 1) finding assignments for the employee
+ * 2) fetching each shift by shiftId (no loading full shifts collection)
  *
  * @param {string} employeeId
- * @param {string} date
- * @returns {Promise<Array<{shiftId:string,date:string,startTime:string,endTime:string}>>}
+ * @returns {Promise<Array<{date:string,startTime:string,endTime:string}>>}
  */
-async function getEmployeeShiftsByDate(employeeId, date) {
-  const assignments = await getAllAssignments();
-  const shifts = await getAllShifts();
+async function getShiftsForEmployee(employeeId) {
+  const db = await getDb();
 
-  const shiftIds = [];
-  for (const a of assignments) {
-    if (a && a.employeeId === employeeId) shiftIds.push(a.shiftId);
-  }
+  const assignmentDocs = await db
+    .collection("assignments")
+    .find({ employeeId: employeeId })
+    .toArray();
 
   const result = [];
-  for (const sid of shiftIds) {
-    for (const s of shifts) {
-      if (s && s.shiftId === sid && s.date === date) {
-        result.push(s);
-      }
+
+  for (let i = 0; i < assignmentDocs.length; i++) {
+    const shiftId = assignmentDocs[i].shiftId;
+
+    // fetch only the one needed shift (efficient)
+    const shiftDoc = await db.collection("shifts").findOne({ shiftId: shiftId });
+
+    if (shiftDoc) {
+      result.push({
+        date: shiftDoc.date,
+        startTime: shiftDoc.startTime,
+        endTime: shiftDoc.endTime,
+      });
     }
   }
 
@@ -170,69 +90,24 @@ async function getEmployeeShiftsByDate(employeeId, date) {
 }
 
 /**
- * Gets full schedule (shift records) for one employee.
+ * Update one employee's name and phone.
  * @param {string} employeeId
- * @returns {Promise<Array<{date:string,startTime:string,endTime:string}>>}
+ * @param {string} name
+ * @param {string} phone
+ * @returns {Promise<boolean>} true if updated, false if no employee matched
  */
-async function getEmployeeSchedule(employeeId) {
-  const assignments = await getAllAssignments();
-  const shifts = await getAllShifts();
-
-  const shiftIds = [];
-  for (const a of assignments) {
-    if (a && a.employeeId === employeeId) shiftIds.push(a.shiftId);
-  }
-
-  const schedule = [];
-  for (const sid of shiftIds) {
-    for (const s of shifts) {
-      if (s && s.shiftId === sid) {
-        schedule.push({ date: s.date, startTime: s.startTime, endTime: s.endTime });
-      }
-    }
-  }
-
-  return schedule;
-}
-
-/**
- * Returns all shifts.
- * @returns {Promise<Array<{shiftId:string,date:string,startTime:string,endTime:string}>>}
- */
-async function getAllShifts() {
-  const shifts = await readJson(SHIFTS_FILE, []);
-  return Array.isArray(shifts) ? shifts : [];
-}
-
-/**
- * Returns all assignments.
- * @returns {Promise<Array<{employeeId:string,shiftId:string}>>}
- */
-async function getAllAssignments() {
-  const assignments = await readJson(ASSIGNMENTS_FILE, []);
-  return Array.isArray(assignments) ? assignments : [];
+async function updateEmployee(employeeId, name, phone) {
+  const db = await getDb();
+  const r = await db.collection("employees").updateOne(
+    { employeeId: employeeId },
+    { $set: { name: name, phone: phone } }
+  );
+  return r.matchedCount === 1;
 }
 
 module.exports = {
-  // config
-  getConfig,
-
-  // employees
   getAllEmployees,
-  findEmployee,
-  getNextEmployeeId,
-  insertEmployee,
-
-  // shifts
-  getAllShifts,
-  findShift,
-
-  // assignments
-  getAllAssignments,
-  assignmentExists,
-  insertAssignment,
-
-  // schedule helpers
-  getEmployeeShiftsByDate,
-  getEmployeeSchedule,
+  getEmployeeById,
+  getShiftsForEmployee,
+  updateEmployee,
 };

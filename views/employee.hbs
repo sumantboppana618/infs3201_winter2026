@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Employee Details</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>{{employee.name}}</h1>
+
+    <p>Phone: {{employee.phone}}</p>
+
+    <p>
+      <a href="/employee/{{employee.employeeId}}/edit">Edit Details</a> |
+      <a href="/">Back</a>
+    </p>
+
+    <h2>Shifts</h2>
+
+    <table>
+      <tr>
+        <th>Date</th>
+        <th>Start</th>
+        <th>End</th>
+      </tr>
+      {{#each shifts}}
+        <tr>
+          <td>{{this.date}}</td>
+          <td class="{{this.startClass}}">{{this.startTime}}</td>
+          <td>{{this.endTime}}</td>
+        </tr>
+      {{/each}}
+    </table>
+  </div>
+</body>
+</html>

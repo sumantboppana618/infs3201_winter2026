@@ -1,6 +1,7 @@
 "use strict";
 
 const { MongoClient } = require("mongodb");
+const config = require("./config.json");
 
 const DB_NAME = "infs3201_winter2026";
 
@@ -15,7 +16,7 @@ async function getClient() {
     return mongoClient;
   }
 
-  const uri = process.env.MONGODB_URI;
+  const uri = process.env.MONGODB_URI || config.MONGODB_URI;
   if (!uri) {
     throw new Error("MONGODB_URI is not set.");
   }

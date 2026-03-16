@@ -4,7 +4,7 @@ const persistence = require("./persistence");
 
 /**
  * Get all employees for landing page.
- * @returns {Promise<Array<{employeeId:number,name:string,phone:string}>>}
+ * @returns {Promise<Array<{employeeId:string,name:string,phone:string}>>}
  */
 async function getAllEmployees() {
   return await persistence.getAllEmployees();
@@ -13,7 +13,7 @@ async function getAllEmployees() {
 /**
  * Get one employee by employeeId.
  * @param {string} employeeId
- * @returns {Promise<{employeeId:number,name:string,phone:string} | null>}
+ * @returns {Promise<{employeeId:string,name:string,phone:string} | null>}
  */
 async function getEmployeeById(employeeId) {
   return await persistence.getEmployeeById(employeeId);

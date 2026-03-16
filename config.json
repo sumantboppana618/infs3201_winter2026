@@ -1,3 +1,4 @@
 {
-  "maxDailyHours": 9
+  "maxDailyHours": 9,
+  "MONGODB_URI": "mongodb+srv://student:60302184@infs3201-winter2026.6x7waml.mongodb.net/"
 }

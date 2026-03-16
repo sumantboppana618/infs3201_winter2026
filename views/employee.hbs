@@ -8,11 +8,13 @@
 <body>
   <div class="container">
     <h1>{{employee.name}}</h1>
-
+    <p><a href="/logout">Logout</a></p>
     <p>Phone: {{employee.phone}}</p>
-
+    {{#if employee.photo}}
+      <p><img src="{{employee.photo}}" alt="{{employee.name}} photo" width="180"></p>
+    {{/if}}
     <p>
-      <a href="/employee/{{employee.employeeId}}/edit">Edit Details</a> |
+      <a href="/employee/{{employee.id}}/edit">Edit Details</a> |
       <a href="/">Back</a>
     </p>
 

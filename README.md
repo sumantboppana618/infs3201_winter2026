@@ -74,3 +74,13 @@ MongoDB Atlas is configured to allow access from all IP addresses for grading.
   - Name must not be empty.
   - Phone must match format `####-####`.
 - Uses PRG (Post/Redirect/Get) pattern.
+
+### Login
+- Username/password login with server-side sha256 hash check.
+- Sessions last 5 minutes and refresh on each request.
+- Security logs are recorded in `security_log` collection.
+
+### Test credentials
+- admin / admin123
+- staff / staff123
+

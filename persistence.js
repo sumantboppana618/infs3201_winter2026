@@ -1,6 +1,6 @@
 "use strict";
 
-const { MongoClient } = require("mongodb");
+const { MongoClient, ObjectId } = require("mongodb");
 const config = require("./config.json");
 
 const DB_NAME = "infs3201_winter2026";
@@ -41,57 +41,57 @@ async function getDb() {
  */
 async function getAllEmployees() {
   const db = await getDb();
-  return await db.collection("employees").find({}).toArray();
+  const docs = await db
+    .collection("employees")
+    .find({}, { projection: { name: 1, phone: 1, photo: 1 } })
+    .toArray();
+  return docs.map((doc) => ({ id: doc._id.toString(), name: doc.name, phone: doc.phone, photo: doc.photo }));
 }
 
 /**
- * Get one employee by employeeId.
- * @param {string} employeeId
- * @returns {Promise<{employeeId:string,name:string,phone:string} | null>}
+ * Get one employee by _id string.
+ * @param {string} id
+ * @returns {Promise<{_id: import("mongodb").ObjectId,name:string,phone:string,photo?:string} | null>}
  */
-async function getEmployeeById(employeeId) {
+async function getEmployeeById(id) {
   const db = await getDb();
-  return await db.collection("employees").findOne({ employeeId: employeeId });
+  let objectId;
+  try {
+    objectId = new ObjectId(id);
+  } catch (e) {
+    return null;
+  }
+  return await db.collection("employees").findOne({ _id: objectId });
 }
 
 /**
- * Get shifts for an employee by:
- * 1) finding assignments for the employee
- * 2) fetching each shift by shiftId (no loading full shifts collection)
- *
- * @param {string} employeeId
+ * Get shifts assigned to an employee _id string.
+ * @param {string} id
  * @returns {Promise<Array<{date:string,startTime:string,endTime:string}>>}
  */
-async function getShiftsForEmployee(employeeId) {
+async function getShiftsForEmployee(id) {
   const db = await getDb();
-
-  const assignmentDocs = await db
-    .collection("assignments")
-    .find({ employeeId: employeeId })
-    .toArray();
-
-  const result = [];
-
-  for (let i = 0; i < assignmentDocs.length; i++) {
-    const shiftId = assignmentDocs[i].shiftId;
-
-    // fetch only the one needed shift (efficient)
-    const shiftDoc = await db.collection("shifts").findOne({ shiftId: shiftId });
-
-    if (shiftDoc) {
-      result.push({
-        date: shiftDoc.date,
-        startTime: shiftDoc.startTime,
-        endTime: shiftDoc.endTime,
-      });
-    }
+  let objectId;
+  try {
+    objectId = new ObjectId(id);
+  } catch (e) {
+    return [];
   }
 
-  return result;
+  const shiftDocs = await db
+    .collection("shifts")
+    .find({ employees: objectId }, { projection: { date: 1, startTime: 1, endTime: 1 } })
+    .toArray();
+
+  return shiftDocs.map((shiftDoc) => ({
+    date: shiftDoc.date,
+    startTime: shiftDoc.startTime,
+    endTime: shiftDoc.endTime,
+  }));
 }
 
 /**
- * Update one employee's name and phone.
+ * Update one employee's name and phone by _id.
  * @param {string} employeeId
  * @param {string} name
  * @param {string} phone
@@ -99,11 +99,33 @@ async function getShiftsForEmployee(employeeId) {
  */
 async function updateEmployee(employeeId, name, phone) {
   const db = await getDb();
+  let objectId;
+  try {
+    objectId = new ObjectId(employeeId);
+  } catch (e) {
+    return false;
+  }
+
   const r = await db.collection("employees").updateOne(
-    { employeeId: employeeId },
+    { _id: objectId },
     { $set: { name: name, phone: phone } }
   );
   return r.matchedCount === 1;
+}
+
+async function getUserByUsername(username) {
+  const db = await getDb();
+  return await db.collection("users").findOne({ username: username });
+}
+
+async function insertSecurityLog(username, url, method) {
+  const db = await getDb();
+  await db.collection("security_log").insertOne({
+    timestamp: new Date(),
+    username: username || "unknown",
+    url,
+    method,
+  });
 }
 
 module.exports = {
@@ -111,4 +133,6 @@ module.exports = {
   getEmployeeById,
   getShiftsForEmployee,
   updateEmployee,
+  getUserByUsername,
+  insertSecurityLog,
 };

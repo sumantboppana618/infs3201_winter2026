@@ -8,10 +8,11 @@
 <body>
   <div class="container">
     <h1>Employees</h1>
+    <p><a href="/logout">Logout</a></p>
     <ul>
       {{#each employees}}
         <li>
-          <a href="/employee/{{this.employeeId}}">
+          <a href="/employee/{{this.id}}">
             {{this.name}}
           </a>
         </li>

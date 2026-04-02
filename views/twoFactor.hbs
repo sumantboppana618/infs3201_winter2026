@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Two-Factor Authentication</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Enter 2FA Code</h1>
+    {{#if message}}
+      <p style="color:red;">{{message}}</p>
+    {{/if}}
+    <form method="post" action="/2fa">
+      <div style="margin-bottom:10px;">
+        <label>Username:</label><br>
+        <input name="username" value="{{username}}" required autocomplete="username">
+      </div>
+      <div style="margin-bottom:10px;">
+        <label>Code:</label><br>
+        <input name="code" pattern="\d{6}" maxlength="6" required autocomplete="one-time-code">
+      </div>
+      <div style="margin-top:10px;">
+        <button type="submit">Verify</button>
+      </div>
+    </form>
+    <p><a href="/login">Back to login</a></p>
+  </div>
+</body>
+</html>

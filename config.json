@@ -1,4 +1,5 @@
 {
   "maxDailyHours": 9,
-  "MONGODB_URI": "mongodb+srv://student:60302184@infs3201-winter2026.6x7waml.mongodb.net/"
+    "dbName": "infs3201-winter2026",
+  "MONGODB_URI": "mongodb+srv://omega365alpha_db_user:rsk1Jk54RYAY7b1Y@infs3201.wq20zcn.mongodb.net/"
 }

@@ -34,6 +34,26 @@
         </tr>
       {{/each}}
     </table>
+
+    <h2 id="docs">Documents</h2>
+    {{#if hasDocuments}}
+      <ul>
+        {{#each documents}}
+          <li>
+            <a href="/employee/{{../employee.id}}/docs/{{this.id}}">{{this.originalName}}</a>
+            ({{this.size}} bytes, uploaded {{this.uploadedAt}})
+          </li>
+        {{/each}}
+      </ul>
+    {{else}}
+      <p>No documents uploaded.</p>
+    {{/if}}
+
+    <h3>Upload PDF (max 2MB, max 5 docs)</h3>
+    <form method="post" action="/employee/{{employee.id}}/docs" enctype="multipart/form-data">
+      <input type="file" name="document" accept="application/pdf" required />
+      <button type="submit">Upload</button>
+    </form>
   </div>
 </body>
 </html>

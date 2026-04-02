@@ -32,6 +32,6 @@ Refactored to Express + Handlebars + MongoDB while preserving business logic.
 ## Running
 1. Ensure MongoDB URI is set in config.json or env MONGODB_URI.
 2. Install deps: 
-pm install
+npm install
 3. Start app: 
-pm start then open http://localhost:3000
+npm start, then open http://localhost:3000
